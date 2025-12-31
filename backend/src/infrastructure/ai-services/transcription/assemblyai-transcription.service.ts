@@ -2,7 +2,8 @@ import { AssemblyAI } from 'assemblyai';
 import {
   ITranscriptionService,
   TranscribedSegment,
-} from '../../../core/interfaces/services/transcription.interface';
+} from 'src/core/interfaces/services/transcription.interface';
+import * as fs from 'fs';
 
 export class AssemblyAITranscriptionService implements ITranscriptionService {
   private client: AssemblyAI;
@@ -12,28 +13,40 @@ export class AssemblyAITranscriptionService implements ITranscriptionService {
   }
 
   async transcribe(audioPath: string): Promise<TranscribedSegment[]> {
+    // Check if audioPath is a local file or URL
+    let audioUrl: string;
+
+    if (audioPath.startsWith('http://') || audioPath.startsWith('https://')) {
+      // It's already a URL
+      audioUrl = audioPath;
+    } else {
+      // It's a local file - upload it first
+      const audioData = fs.readFileSync(audioPath);
+      audioUrl = await this.client.files.upload(audioData);
+    }
+
+    // Transcribe with speaker diarization
     const transcript = await this.client.transcripts.transcribe({
-      audio: audioPath,
-      speaker_labels: true,
+      audio: audioUrl,
+      speaker_labels: true, // Enable diarization
     });
 
     if (transcript.status === 'error') {
       throw new Error(`Transcription failed: ${transcript.error}`);
     }
 
-    const segments: TranscribedSegment[] = [];
+    const entries: TranscribedSegment[] = [];
+    const utterances = transcript.utterances || [];
 
-    if (transcript.utterances) {
-      for (const utterance of transcript.utterances) {
-        segments.push({
-          speaker: utterance.speaker, // "A" or "B"
-          text: utterance.text,
-          start: utterance.start,
-          end: utterance.end,
-        });
-      }
+    for (const utterance of utterances) {
+      entries.push({
+        speaker: utterance.speaker,
+        text: utterance.text,
+        start: utterance.start,
+        end: utterance.end,
+      });
     }
 
-    return segments;
+    return entries;
   }
 }

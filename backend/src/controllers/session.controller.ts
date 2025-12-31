@@ -8,7 +8,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { CreateSessionDto } from '../dtos/create-session.dto';
-import { TranscribeDto } from '../dtos/transcribe.dto';
+
 import { Inject } from '@nestjs/common';
 import { CreateSessionUseCase } from 'src/core/use-cases/create-session.use-case';
 import { ProcessTranscriptionUseCase } from 'src/core/use-cases/process-transcription.use-case';
@@ -16,6 +16,16 @@ import { GenerateSummaryUseCase } from 'src/core/use-cases/generate-summary.use-
 import { GenerateEmbeddingUseCase } from 'src/core/use-cases/generate-embedding.use-case';
 import { SESSION_REPOSITORY } from 'src/core/interfaces/repositories/session-repository.interface';
 import type { ISessionRepository } from 'src/core/interfaces/repositories/session-repository.interface';
+import {
+  UseInterceptors,
+  UploadedFile,
+  ParseFilePipe,
+  MaxFileSizeValidator,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname } from 'path';
+import { AudioFileValidator } from 'src/validators/audio-file.validator';
 
 @Controller('sessions')
 export class SessionController {
@@ -40,15 +50,39 @@ export class SessionController {
   }
 
   @Post(':id/transcribe')
-  async transcribe(@Param('id') id: string, @Body() dto: TranscribeDto) {
+  @UseInterceptors(
+    FileInterceptor('audio', {
+      storage: diskStorage({
+        destination: './uploads',
+        filename: (req, file, cb) => {
+          const uniqueSuffix =
+            Date.now() + '-' + Math.round(Math.random() * 1e9);
+          cb(null, `audio-${uniqueSuffix}${extname(file.originalname)}`);
+        },
+      }),
+    }),
+  )
+  async transcribe(
+    @Param('id') id: string,
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: [
+          new MaxFileSizeValidator({ maxSize: 100 * 1024 * 1024 }), // 100MB
+          new AudioFileValidator(),
+        ],
+      }),
+    )
+    file: Express.Multer.File,
+  ) {
     const entriesCreated = await this.processTranscriptionUseCase.execute(
       id,
-      dto.audioPath,
+      file.path,
     );
     return {
       success: true,
       entriesCreated,
       message: `Successfully transcribed audio and created ${entriesCreated} entries`,
+      filename: file.filename,
     };
   }
 
