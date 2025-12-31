@@ -74,10 +74,15 @@ export class SessionController {
     )
     file: Express.Multer.File,
   ) {
+    console.log('📁 File uploaded:', file.filename);
+    console.log('📂 File path:', file.path);
+    console.log('🎯 Session ID:', id);
     const entriesCreated = await this.processTranscriptionUseCase.execute(
       id,
       file.path,
     );
+
+    console.log('✅ Entries created:', entriesCreated);
     return {
       success: true,
       entriesCreated,
@@ -86,7 +91,7 @@ export class SessionController {
     };
   }
 
-  @Get(':id/summary')
+  @Post(':id/summary')
   async getSummary(@Param('id') id: string) {
     const summary = await this.generateSummaryUseCase.execute(id);
     return { summary };
@@ -105,5 +110,12 @@ export class SessionController {
       return { error: 'Session not found' };
     }
     return session;
+  }
+
+  @Get()
+  async getAllSessions() {
+    const sessions = await this.sessionRepo.findAll();
+    console.log('📋 Fetching all sessions. Count:', sessions.length);
+    return sessions;
   }
 }

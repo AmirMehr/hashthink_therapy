@@ -31,7 +31,7 @@ export function ActionButtons({
   const handleGenerateEmbedding = async () => {
     setLoadingEmbedding(true);
     try {
-      await apiClient.post(`/sessions/${sessionId}/embedding`);
+      await apiClient.post(`/sessions/${sessionId}/embed`);
       alert('Embedding generated successfully');
       router.refresh();
     } catch (error) {

@@ -6,7 +6,8 @@ export enum Speaker {
 export interface SessionEntry {
   speaker: Speaker;
   content: string;
-  timestamp?: string;
+  timestamp: string;
+  text: string;
   metadata?: Record<string, string | number | boolean | null>;
 }
 
