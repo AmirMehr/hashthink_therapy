@@ -1,0 +1,75 @@
+import {
+  Controller,
+  Post,
+  Get,
+  Body,
+  Param,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
+import { CreateSessionDto } from '../dtos/create-session.dto';
+import { TranscribeDto } from '../dtos/transcribe.dto';
+import { Inject } from '@nestjs/common';
+import { CreateSessionUseCase } from 'src/core/use-cases/create-session.use-case';
+import { ProcessTranscriptionUseCase } from 'src/core/use-cases/process-transcription.use-case';
+import { GenerateSummaryUseCase } from 'src/core/use-cases/generate-summary.use-case';
+import { GenerateEmbeddingUseCase } from 'src/core/use-cases/generate-embedding.use-case';
+import { SESSION_REPOSITORY } from 'src/core/interfaces/repositories/session-repository.interface';
+import type { ISessionRepository } from 'src/core/interfaces/repositories/session-repository.interface';
+
+@Controller('sessions')
+export class SessionController {
+  constructor(
+    private readonly createSessionUseCase: CreateSessionUseCase,
+    private readonly processTranscriptionUseCase: ProcessTranscriptionUseCase,
+    private readonly generateSummaryUseCase: GenerateSummaryUseCase,
+    private readonly generateEmbeddingUseCase: GenerateEmbeddingUseCase,
+    @Inject(SESSION_REPOSITORY)
+    private readonly sessionRepo: ISessionRepository,
+  ) {}
+
+  @Post()
+  @HttpCode(HttpStatus.CREATED)
+  async create(@Body() dto: CreateSessionDto) {
+    const sessionId = await this.createSessionUseCase.execute(
+      dto.therapistId,
+      dto.clientId,
+      new Date(dto.startTime),
+    );
+    return { sessionId };
+  }
+
+  @Post(':id/transcribe')
+  async transcribe(@Param('id') id: string, @Body() dto: TranscribeDto) {
+    const entriesCreated = await this.processTranscriptionUseCase.execute(
+      id,
+      dto.audioPath,
+    );
+    return {
+      success: true,
+      entriesCreated,
+      message: `Successfully transcribed audio and created ${entriesCreated} entries`,
+    };
+  }
+
+  @Get(':id/summary')
+  async getSummary(@Param('id') id: string) {
+    const summary = await this.generateSummaryUseCase.execute(id);
+    return { summary };
+  }
+
+  @Post(':id/embed')
+  async embed(@Param('id') id: string) {
+    const embedding = await this.generateEmbeddingUseCase.execute(id);
+    return { embeddingLength: embedding.length };
+  }
+
+  @Get(':id')
+  async getSession(@Param('id') id: string) {
+    const session = await this.sessionRepo.findById(id);
+    if (!session) {
+      return { error: 'Session not found' };
+    }
+    return session;
+  }
+}
